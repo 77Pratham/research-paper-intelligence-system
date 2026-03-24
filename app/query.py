@@ -42,22 +42,28 @@ def retrieve_top_chunks(question: str, top_k: int = 5) -> list[dict]:
     return results
 
 
-def build_prompt(question: str, context_chunks: list[dict]) -> str:
-    """Assemble the RAG prompt from question + retrieved chunks."""
+def build_prompt(question: str, context_chunks: list[dict], chat_history: list[dict] = []) -> str:
     context = "\n\n---\n\n".join([
         f"[Source: {c['source']}, Page {c['page']}]\n{c['text']}"
         for c in context_chunks
     ])
-    return f"""You are a research assistant. Answer the question using ONLY the context below.
+
+    # Keep history short and explicit for small models
+    history_str = ""
+    if chat_history:
+        history_str = "\nPrevious conversation:\n"
+        for turn in chat_history[-3:]:  # only last 3 turns for phi3:mini
+            history_str += f"Q: {turn['user']}\nA: {turn['assistant']}\n"
+        history_str += "\n"
+
+    return f"""Use the context below to answer the question.
+If the question refers to something from the previous conversation, use that to understand it.
 If the answer is not in the context, say "I don't have enough information."
 
-CONTEXT:
+Context:
 {context}
-
-QUESTION:
-{question}
-
-ANSWER:"""
+{history_str}Question: {question}
+Answer:"""
 
 
 def query_ollama(prompt: str) -> str:
@@ -71,10 +77,10 @@ def query_ollama(prompt: str) -> str:
     return response.json()["response"].strip()
 
 
-def answer_question(question: str, top_k: int = 5) -> dict:
+def answer_question(question: str, top_k: int = 5, chat_history: list[dict] = []) -> dict:
     """Full pipeline: question → retrieve → prompt → LLM → answer + citations."""
     context_chunks = retrieve_top_chunks(question, top_k=top_k)
-    prompt = build_prompt(question, context_chunks)
+    prompt = build_prompt(question, context_chunks, chat_history)
     answer = query_ollama(prompt)
 
     return {
@@ -85,7 +91,6 @@ def answer_question(question: str, top_k: int = 5) -> dict:
             for c in context_chunks
         ]
     }
-
 
 if __name__ == "__main__":
     print("\n🔍 RAG Query System Ready — type your question below")

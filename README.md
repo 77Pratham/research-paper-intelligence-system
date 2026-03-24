@@ -85,3 +85,15 @@ Full docs at `http://localhost:8000/docs`
 - **Source citations** — every answer links back to the exact PDF page
 - **Model agnostic** — swap Ollama model with one config change
 - **REST API** — queryable from any frontend or script
+
+## ⚙️ Model Configuration
+
+| Environment | Model | RAM Required |
+|-------------|-------|-------------|
+| Local dev | `phi3:mini` | ~4GB |
+| Production (recommended) | `llama3` or `mistral` | ~8GB |
+
+> The pipeline is fully model-agnostic. Swap the model with one line in `query.py`:
+> `OLLAMA_MODEL = "llama3"` — no other changes needed.
+> Local development uses phi3:mini due to hardware constraints.
+> Production deployments should use Llama3 or Mistral for reliable multi-turn memory.
