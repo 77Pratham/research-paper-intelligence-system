@@ -34,6 +34,7 @@ os.makedirs(DATA_DIR, exist_ok=True)
 class QueryRequest(BaseModel):
     question: str
     top_k: int = 5
+    chat_history: list[dict] = []  # list of {"user": ..., "assistant": ...}
 
 class SourceItem(BaseModel):
     source: str
@@ -84,7 +85,11 @@ def query(request: QueryRequest):
         raise HTTPException(status_code=400, detail="Question cannot be empty")
 
     try:
-        result = answer_question(request.question, top_k=request.top_k)
+        result = answer_question(
+            request.question,
+            top_k=request.top_k,
+            chat_history=request.chat_history
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Query failed: {str(e)}")
 
