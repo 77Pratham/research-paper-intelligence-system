@@ -1,0 +1,12 @@
+New-Item .gitignore -Force
+```
+
+Paste into `.gitignore`:
+```
+venv/
+indexes/
+data/
+__pycache__/
+*.pkl
+*.index
+.env
