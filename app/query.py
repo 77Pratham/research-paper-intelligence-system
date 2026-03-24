@@ -2,6 +2,7 @@ import faiss
 import pickle
 import numpy as np
 import requests
+import os
 from sentence_transformers import SentenceTransformer
 
 # Paths
@@ -12,7 +13,7 @@ CHUNKS_FILE = "indexes/chunks.pkl"
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 
 # Ollama config
-OLLAMA_URL = "http://localhost:11434/api/generate"
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
 OLLAMA_MODEL = "phi3:mini"
 
 # Load once at module level (faster repeated queries)
@@ -28,7 +29,7 @@ with open(CHUNKS_FILE, "rb") as f:
 print(f"✅ Index loaded — {index.ntotal} vectors ready")
 
 
-def retrieve_top_chunks(question: str, top_k: int = 5) -> list[dict]:
+def retrieve_top_chunks(question: str, top_k: int = 3) -> list[dict]:
     """Embed the question and find top-k similar chunks from FAISS."""
     query_embedding = model.encode([question], convert_to_numpy=True).astype(np.float32)
     distances, indices = index.search(query_embedding, top_k)
@@ -43,17 +44,19 @@ def retrieve_top_chunks(question: str, top_k: int = 5) -> list[dict]:
 
 
 def build_prompt(question: str, context_chunks: list[dict], chat_history: list[dict] = []) -> str:
+    """Assemble RAG prompt — optimized for phi3:mini context limits."""
+    # Truncate each chunk to 300 chars to stay within context window
     context = "\n\n---\n\n".join([
-        f"[Source: {c['source']}, Page {c['page']}]\n{c['text']}"
+        f"[Source: {c['source']}, Page {c['page']}]\n{c['text'][:300]}"
         for c in context_chunks
     ])
 
-    # Keep history short and explicit for small models
+    # Only include last 2 turns, truncated — phi3:mini has limited context
     history_str = ""
     if chat_history:
         history_str = "\nPrevious conversation:\n"
-        for turn in chat_history[-3:]:  # only last 3 turns for phi3:mini
-            history_str += f"Q: {turn['user']}\nA: {turn['assistant']}\n"
+        for turn in chat_history[-2:]:
+            history_str += f"Q: {turn['user']}\nA: {turn['assistant'][:200]}\n"
         history_str += "\n"
 
     return f"""Use the context below to answer the question.
@@ -67,17 +70,20 @@ Answer:"""
 
 
 def query_ollama(prompt: str) -> str:
-    """Send prompt to local Ollama and stream back the response."""
+    """Send prompt to local Ollama and return the response."""
     response = requests.post(OLLAMA_URL, json={
         "model": OLLAMA_MODEL,
         "prompt": prompt,
-        "stream": False
+        "stream": False,
+        "options": {
+            "num_ctx": 4096  # explicitly set context window for phi3:mini
+        }
     })
     response.raise_for_status()
     return response.json()["response"].strip()
 
 
-def answer_question(question: str, top_k: int = 5, chat_history: list[dict] = []) -> dict:
+def answer_question(question: str, top_k: int = 3, chat_history: list[dict] = []) -> dict:
     """Full pipeline: question → retrieve → prompt → LLM → answer + citations."""
     context_chunks = retrieve_top_chunks(question, top_k=top_k)
     prompt = build_prompt(question, context_chunks, chat_history)
@@ -92,18 +98,30 @@ def answer_question(question: str, top_k: int = 5, chat_history: list[dict] = []
         ]
     }
 
+
 if __name__ == "__main__":
     print("\n🔍 RAG Query System Ready — type your question below")
     print("Type 'quit' to exit\n")
+
+    conversation_history = []
+
     while True:
         q = input("Question: ").strip()
         if q.lower() == "quit":
             break
         if not q:
             continue
-        result = answer_question(q)
+
+        result = answer_question(q, top_k=3, chat_history=conversation_history)
+
         print(f"\n💬 Answer:\n{result['answer']}")
         print(f"\n📄 Sources used:")
         for s in result["sources"]:
             print(f"   - {s['source']} (Page {s['page']}, score: {s['score']:.2f})")
         print()
+
+        # Append to conversation history for next turn
+        conversation_history.append({
+            "user": q,
+            "assistant": result["answer"]
+        })
