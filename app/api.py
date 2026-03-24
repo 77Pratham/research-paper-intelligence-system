@@ -1,15 +1,10 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from .query import answer_question, compare_pdfs
+from .ingest import extract_text_from_pdfs, chunk_documents, embed_and_index
 import shutil
 import os
-import sys
-
-# Add app directory to path
-sys.path.append(os.path.dirname(__file__))
-
-from ingest import extract_text_from_pdfs, chunk_documents, embed_and_index
-from query import answer_question
 
 app = FastAPI(
     title="Research Paper Intelligence System",
@@ -46,7 +41,17 @@ class QueryResponse(BaseModel):
     answer: str
     sources: list[SourceItem]
 
+class CompareRequest(BaseModel):
+    question: str
+    pdf_names: list[str]
+    top_k: int = 3
 
+
+class CompareResponse(BaseModel):
+    question: str
+    answer: str
+    compared_pdfs: list[str]
+    sources: list[SourceItem]
 # ---------- Endpoints ----------
 
 @app.get("/")
@@ -95,6 +100,25 @@ def query(request: QueryRequest):
 
     return result
 
+@app.post("/compare", response_model=CompareResponse)
+def compare(request: CompareRequest):
+    """Compare how multiple PDFs answer the same question."""
+    if len(request.pdf_names) < 2:
+        raise HTTPException(status_code=400, detail="Provide at least 2 PDF names to compare")
+
+    if not request.question.strip():
+        raise HTTPException(status_code=400, detail="Question cannot be empty")
+
+    try:
+        result = compare_pdfs(
+            request.question,
+            request.pdf_names,
+            top_k=request.top_k
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Comparison failed: {str(e)}")
+
+    return result
 
 @app.get("/documents")
 def list_documents():

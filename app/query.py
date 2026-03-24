@@ -98,6 +98,71 @@ def answer_question(question: str, top_k: int = 3, chat_history: list[dict] = []
         ]
     }
 
+def retrieve_chunks_for_pdf(question: str, pdf_name: str, top_k: int = 3) -> list[dict]:
+    """Retrieve top-k chunks from a SPECIFIC PDF only."""
+    query_embedding = model.encode([question], convert_to_numpy=True).astype(np.float32)
+    
+    # Search more candidates first, then filter by PDF name
+    distances, indices = index.search(query_embedding, top_k * 10)
+    
+    results = []
+    for dist, idx in zip(distances[0], indices[0]):
+        if idx == -1:
+            continue
+        chunk = chunks[idx].copy()
+        if chunk["source"] == pdf_name:  # filter to this PDF only
+            chunk["score"] = float(dist)
+            results.append(chunk)
+        if len(results) >= top_k:
+            break
+    
+    return results
+
+
+def build_comparison_prompt(question: str, pdf_contexts: dict) -> str:
+    """Build a structured comparison prompt across multiple PDFs."""
+    sections = ""
+    for pdf_name, pdf_chunks in pdf_contexts.items():
+        if pdf_chunks:
+            section_text = "\n".join([c["text"][:300] for c in pdf_chunks])
+            sections += f"\n--- From: {pdf_name} ---\n{section_text}\n"
+        else:
+            sections += f"\n--- From: {pdf_name} ---\nNo relevant content found.\n"
+
+    return f"""You are a research assistant comparing multiple documents.
+Answer the question by referencing each document separately.
+Structure your answer clearly with each document's perspective.
+
+Documents:
+{sections}
+
+Question: {question}
+
+Provide a structured comparison mentioning each document by name:"""
+
+
+def compare_pdfs(question: str, pdf_names: list[str], top_k: int = 3) -> dict:
+    """Compare how multiple PDFs answer the same question."""
+    pdf_contexts = {}
+    all_sources = []
+
+    for pdf_name in pdf_names:
+        pdf_chunks = retrieve_chunks_for_pdf(question, pdf_name, top_k=top_k)
+        pdf_contexts[pdf_name] = pdf_chunks
+        all_sources.extend([
+            {"source": c["source"], "page": c["page"], "score": c["score"]}
+            for c in pdf_chunks
+        ])
+
+    prompt = build_comparison_prompt(question, pdf_contexts)
+    answer = query_ollama(prompt)
+
+    return {
+        "question": question,
+        "answer": answer,
+        "compared_pdfs": pdf_names,
+        "sources": all_sources
+    }
 
 if __name__ == "__main__":
     print("\n🔍 RAG Query System Ready — type your question below")
