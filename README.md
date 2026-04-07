@@ -98,4 +98,4 @@ Full docs at `http://localhost:8000/docs`
 > Local development uses phi3:mini due to hardware constraints.
 > Production deployments should use Llama3 or Mistral for reliable multi-turn memory.
 
-[![Watch the Demo](https://youtube.com/4jqGgtisTV8?si=f3TLcvVXl6By-8VF)](https://youtube.com/4jqGgtisTV8?si=f3TLcvVXl6By-8VF)
+[![Watch the Demo](https://youtu.be/4jqGgtisTV8](https://youtu.be/4jqGgtisTV8)
