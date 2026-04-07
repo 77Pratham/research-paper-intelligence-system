@@ -15,6 +15,9 @@ User Question → Embed Query → FAISS Similarity Search → Top-K Chunks
                                                                         ↓
                                           Prompt Assembly → Ollama (phi3/Llama3) → Answer + Citations
 ```
+## 🎥 Demo Video
+
+[![Watch the demo](https://img.youtube.com/vi/4jqGgtisTV8/0.jpg)](https://youtu.be/4jqGgtisTV8)
 
 ## ⚡ Tech Stack
 
@@ -97,5 +100,3 @@ Full docs at `http://localhost:8000/docs`
 > `OLLAMA_MODEL = "llama3"` — no other changes needed.
 > Local development uses phi3:mini due to hardware constraints.
 > Production deployments should use Llama3 or Mistral for reliable multi-turn memory.
-
-[![Watch the Demo](https://youtu.be/4jqGgtisTV8](https://youtu.be/4jqGgtisTV8)
