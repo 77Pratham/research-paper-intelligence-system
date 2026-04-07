@@ -97,3 +97,5 @@ Full docs at `http://localhost:8000/docs`
 > `OLLAMA_MODEL = "llama3"` — no other changes needed.
 > Local development uses phi3:mini due to hardware constraints.
 > Production deployments should use Llama3 or Mistral for reliable multi-turn memory.
+
+[![Watch the Demo](https://youtube.com/f3TLcvVXl6By-8VF)](https://youtube.com/f3TLcvVXl6By-8VF)
